@@ -1,24 +1,22 @@
 {
-  "name": "ajo-backend",
+  "name": "saveround-api",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Backend API for SaveRound, a group savings (Ajo) contribution tracker",
+  "main": "app.js",
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Akowanu1/ajo-backend.git"
+    "url": "git+https://github.com/Akowanu1/SaveRound-API.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
-  "bugs": {
-    "url": "https://github.com/Akowanu1/ajo-backend/issues"
-  },
-  "homepage": "https://github.com/Akowanu1/ajo-backend#readme",
+  "bugs": { "url": "https://github.com/Akowanu1/SaveRound-API/issues" },
+"homepage": "https://github.com/Akowanu1/SaveRound-API#readme",
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.11.0",
@@ -32,7 +30,4 @@
   "devDependencies": {
     "nodemon": "^1.14.10"
   },
-  "allowScripts": {
-    "nodemon@1.14.10": true
-  }
-}
+  "engines": { "node": ">=20.19.0" }
