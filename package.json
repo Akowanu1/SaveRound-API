@@ -11,12 +11,17 @@
     "type": "git",
     "url": "git+https://github.com/Akowanu1/SaveRound-API.git"
   },
-  "keywords": [],
+  "keywords": ["ajo", "savings", "contribution", "api", "express"],
   "author": "",
   "license": "ISC",
   "type": "module",
-  "bugs": { "url": "https://github.com/Akowanu1/SaveRound-API/issues" },
-"homepage": "https://github.com/Akowanu1/SaveRound-API#readme",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "bugs": {
+    "url": "https://github.com/Akowanu1/SaveRound-API/issues"
+  },
+  "homepage": "https://github.com/Akowanu1/SaveRound-API#readme",
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.11.0",
@@ -28,6 +33,6 @@
     "mongoose": "^9.11.1"
   },
   "devDependencies": {
-    "nodemon": "^1.14.10"
-  },
-  "engines": { "node": ">=20.19.0" }
+    "nodemon": "^3.1.10"
+  }
+}
