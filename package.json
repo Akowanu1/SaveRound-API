@@ -1,7 +1,7 @@
 {
-  "name": "ajo-backend",
+  "name": "saveround-api",
   "version": "1.0.0",
-  "description": "",
+  "description": "Backend API for SaveRound, a group savings (Ajo) contribution tracker",
   "main": "index.js",
   "scripts": {
     "start": "node app.js",
@@ -9,7 +9,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Akowanu1/ajo-backend.git"
+    "url": "git+https://github.com/Akowanu1/SaveRound-API.git"
   },
   "keywords": [],
   "author": "",
