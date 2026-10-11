@@ -1,0 +1,15 @@
+{
+  "name": "c8-ajo-part",
+  "version": "1.0.0",
+  "private": true,
+  "main": "seed/seed.js",
+  "scripts": {
+    "seed": "node seed/seed.js",
+    "seed:prod-check": "NODE_ENV=production node seed/seed.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.1",
+    "mongoose": "^8.8.0"
+  }
+}
