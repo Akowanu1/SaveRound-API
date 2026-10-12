@@ -1,15 +1,23 @@
+feature/c-uploads
+import 'dotenv/config';
 import "dotenv/config"; // must be first so every other file can read process.env
+feature/c-foundations
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import connectDb from "./src/config/db.js";
+feature/c-uploads
+import userRoutes from './src/routes/userRoutes.js';
+import groupRoutes from './src/routes/groupRoutes.js';
+
 import ApiError from "./src/utils/ApiError.js";
 import authRoutes from "./src/routes/authRoutes.js";
 import userRoutes from "./src/routes/userRoutes.js";
 import groupRoutes from "./src/routes/groupRoutes.js";
 import contributionRoutes from "./src/routes/contributionRoutes.js";
 import { notFound, errorHandler } from "./src/middlewares/errorHandler.js";
+feature/c-foundations
 
 const app = express();
 
@@ -19,6 +27,12 @@ app.set("trust proxy", 1);
 
 // helmet adds security headers (hides X-Powered-By, blocks MIME sniffing, and more).
 app.use(helmet());
+feature/c-uploads
+app.use(cors());
+app.use(express.json());
+app.use('/api/users', userRoutes);
+app.use('/api/groups', groupRoutes);
+feature/c-foundations
 
 // --- CORS: which websites are allowed to call this API from a browser ---
 
