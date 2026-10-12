@@ -5,11 +5,7 @@ const protect = async (req, res, next) => {
 try {
 const authHeader = req.headers.authorization;
 
-if (
-!authHeader ||
-!authHeader.startsWith('Bearer ') ||
-!authHeader.slice(7).trim()
-) {
+if (!authHeader || !authHeader.startsWith('Bearer ') || !authHeader.slice(7).trim()) {
 return res.status(401).json({
 message: 'Not authorized. Please log in.',
 });
