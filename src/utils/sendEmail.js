@@ -25,7 +25,7 @@ export const sendEmail = async ({ to, subject, html }) => {
 export const verificationEmailHtml = (name, link) => `
   <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto">
     <h2>Welcome, ${name}!</h2>
-    <p>Please confirm your email address to activate your account.</p>
+    <p>Please confirm your email address to activate your SaveRound account.</p>
     <p><a href="${link}" style="background:#0a7d4f;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Verify my email</a></p>
     <p>Or paste this link in your browser:<br>${link}</p>
     <p style="color:#666">This link expires in 24 hours.</p>

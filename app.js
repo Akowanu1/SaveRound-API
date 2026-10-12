@@ -10,8 +10,11 @@ import userRoutes from "./src/routes/userRoutes.js";
 import groupRoutes from "./src/routes/groupRoutes.js";
 import contributionRoutes from "./src/routes/contributionRoutes.js";
 import { notFound, errorHandler } from "./src/middlewares/errorHandler.js";
+import { APP_NAME } from "./src/config/constants.js";
 
 const app = express();
+
+res.send(\Welcome to the ${APP_NAME} API`);
 
 // Behind Render's proxy, so rate limiting sees the real client IP.
 app.set("trust proxy", 1);
