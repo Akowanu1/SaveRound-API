@@ -2,13 +2,14 @@ import "dotenv/config"; // must be first so every other file can read process.en
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-//import rateLimit from "express-rate-limit";
+import payoutScheduleRoutes from "./src/routes/payoutScheduleRoutes.js";
+import rateLimit from "express-rate-limit";
 import connectDb from "./src/config/db.js";
 import ApiError from "./src/utils/ApiError.js";
 import authRoutes from "./src/routes/authRoutes.js";
 import userRoutes from "./src/routes/userRoutes.js";
-import groupRoutes from "./src/routes/groupRoutes.js";
-import contributionRoutes from "./src/routes/contributionRoutes.js";
+// import groupRoutes from "./src/routes/groupRoutes.js";
+// import contributionRoutes from "./src/routes/contributionRoutes.js";
 import { notFound, errorHandler } from "./src/middlewares/errorHandler.js";
 
 const app = express();
@@ -48,8 +49,9 @@ app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/users", userRoutes);
-app.use("/api/groups", groupRoutes);
-app.use("/api", contributionRoutes);
+app.use("/api/groups", payoutScheduleRoutes);
+// app.use("/api/groups", groupRoutes);
+// app.use("/api/contributions", contributionRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
