@@ -1,40 +1,21 @@
-import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
+import jwt from "jsonwebtoken";
+import User from "../models/User.js";
+import ApiError from "../utils/ApiError.js";
 
-const protect = async (req, res, next) => {
-try {
-const authHeader = req.headers.authorization;
+export const protect = async (req, res, next) => {
+  const header = req.headers.authorization;
+  if (!header?.startsWith("Bearer ")) throw new ApiError(401, "No token provided");
 
-if (!authHeader || !authHeader.startsWith('Bearer ') || !authHeader.slice(7).trim()) {
-return res.status(401).json({
-message: 'Not authorized. Please log in.',
-});
-}
+  const token = header.split(" ")[1];
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+  } catch {
+    throw new ApiError(401, "Invalid or expired token");
+  }
 
-const token = authHeader.slice(7).trim();
-
-const decoded = jwt.verify(
-token,
-process.env.JWT_SECRET_KEY
-);
-
-const user = await User.findById(decoded.id);
-
-if (!user) {
-return res.status(401).json({
-message: 'Not authorized. User not found.',
-});
-}
-
-// Password and verification fields are excluded by the schema.
-req.user = user;
-
-next();
-} catch (error) {
-return res.status(401).json({
-message: 'Not authorized. Invalid or expired token.',
-});
-}
+  const user = await User.findById(decoded.id);
+  if (!user) throw new ApiError(401, "User no longer exists");
+  req.user = user;
+  next();
 };
-
-export default protect;
