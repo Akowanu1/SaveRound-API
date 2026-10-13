@@ -25,3 +25,8 @@ router.get("/:groupId", authMiddleware, getGroupById);
 
 // A9 request to join
 router.post("/api/groups/:groupId/join", authMiddleware, requestToJoinGroup);
+
+// A10 approve or reject members
+router.get('/api/groups/:groupId/requests', authMiddleware, getGroupRequests);
+router.patch("/api/members/:userId/approve", authMiddleware, approveMember);
+router.patch("/api/members/:userId/reject", authMiddleware, rejectMember);

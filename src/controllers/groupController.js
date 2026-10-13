@@ -407,3 +407,161 @@ const requestToJoinGroup = async ( req, res ) => {
         });
     }
 };
+
+// A10: Creator views pending membership request.
+const getGroupRequests = async ( req, res) => {
+    try {
+        const group = await getGroupOwnedByUser(
+            req.params.groupId,
+            req.user._id,
+            res
+        );
+
+    if ( !group) return;
+
+    const requests = await Membership.find({
+        group: group._id,
+        status: "pending",
+    })
+    .select("user group status createAt")
+    .populate({
+        path: "user",
+        select: SAFE_USER_FIELDS,
+    })
+    .lean();
+
+    return res.status(200).json({
+        count: requests.length,
+        requests,
+    });
+} catch (error) {
+    console.error("Get group requests error:", error);
+
+    return res.status(500).json({
+        success: false,
+        message: "Failed to retrieve membership requests",
+        timestamp: new Data(),
+    });
+}
+};
+
+// creator approves a pending member.
+const approveMember = async ( req , res ) => {
+    try {
+        const { groupId, userId } = req.params;
+        const group = await getGroupOwnedByUser(
+            groupId,
+            req.user._id,
+            res
+        );
+
+        if ( !group) return;
+
+        if (!mongoose.isValidObjectId(userId)) {
+            return res.status(400).json({
+                success: false,
+                message: "nvalid user ID",
+                timestamp: new Data(),
+            });
+        }
+
+        const membership = await Membership.fiindOne({
+            group: group._id,
+            user: user._id,
+            status: "pending",
+        });
+
+        if ( !membership) {
+            return res.status(404).json({
+                success: false,
+                message: "This group is no longer accepting member",
+                timestamp: new Data(),
+            });
+        }
+
+        const approvedCount = await countApprovedMembers(group._id);
+
+        if (approveCount >= group.maxMembers) {
+            return res.status(400).json({
+                success: false,
+                message: "This group is full",
+                timestamp: new Data(),
+            })
+        }
+
+        membership.status = "approved";
+        membership.payoutPosition = approvedCount + 1;
+        membership.approvedAt = new data(),
+
+        await membership.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Member aprroved successfully",
+            data: membership,
+            timestamp: new Data(),
+        });
+    } catch (error) {
+        console.error("Approve number error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to approved member",
+            timestamp: new Data(),
+        });
+    }
+};
+
+//A10: creator rejects a pending member.
+const rejectMember = async ( req, res ) => {
+    try {
+        const { groupId, userId } = req.params;
+        const group = await getGroupOwnedByUser(
+            groupId,
+            req.user._id,
+            res
+        );
+
+        if (!group) return;
+
+        if (!mongoose.isValidObjectId(userId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid user ID",
+            });
+        }
+
+        const membership = await Membership.findOne({
+            group: group._id,
+            user: userId,
+            status: "pending",
+        });
+
+        if (!membership) {
+            return res.status(404).json({
+                success: false,
+                message: "Pending membership request not found",
+                timestamp: new Data(),
+            });
+        }
+
+        membership.status = "rejected";
+        membership.payoutPosition = null;
+
+        await membership.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Membership request rejected",
+            timestamp: new Data(),
+        });
+    } catch (error) {
+        console.error("Reject number error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to reject membership request",
+            timestamp: new Data(),
+        });
+    }
+};
