@@ -1,644 +1,246 @@
 import mongoose from "mongoose";
-import Group from "../models/Membership.js";
-import User from "../models/User.js";
+import SavingsGroup from "../models/SavingsGroup.js";
 import Membership from "../models/Membership.js";
+import ApiError from "../utils/ApiError.js";
+import { sendSuccess } from "../utils/apiResponse.js";
+import { uploadImage, deleteImage } from "../utils/cloudinaryUpload.js";
 
-const ALLOWED_FREQUENCIES = [ "weekly", "bi-weekly", "monthly"];
+const FREQUENCIES = ["weekly", "bi-weekly", "monthly"];
 
-//safe to return when populating a user.
-const SAFE_USER_FIELDS = "fullName, email";
+const assertValidId = (id, label = "ID") => {
+  if (!mongoose.isValidObjectId(id)) throw new ApiError(400, `Invalid ${label}`);
+};
 
-// Help: count approved memberships in a group.
-const countApprovedMembers = (groupId) => {
-    return Membership.countDocuments({
-        gruop: groupId,
-        status: "approved",
+const findGroupOr404 = async (groupId) => {
+  assertValidId(groupId, "group ID");
+  const group = await SavingsGroup.findById(groupId);
+  if (!group) throw new ApiError(404, "Group not found");
+  return group;
+};
+
+// R9: loads the group and confirms the logged-in user is its creator.
+const loadGroupAsCreator = async (groupId, user) => {
+  const group = await findGroupOr404(groupId);
+  if (!group.creator.equals(user._id)) throw new ApiError(403, "Only the group creator can do this");
+  return group;
+};
+
+const countApproved = (groupId) => Membership.countDocuments({ group: groupId, status: "approved" });
+
+// ---------- A7 ----------
+export const createGroup = async (req, res) => {
+  const { name, description, contributionAmount, frequency, maxMembers } = req.body || {};
+
+  if (typeof name !== "string" || name.trim().length < 3 || name.trim().length > 60) {
+    throw new ApiError(400, "Group name is required (3 to 60 characters)");
+  }
+  if (!Number.isInteger(contributionAmount) || contributionAmount < 1) {
+    throw new ApiError(400, "Contribution amount must be a whole number greater than 0");
+  }
+  if (!FREQUENCIES.includes(frequency)) {
+    throw new ApiError(400, "Frequency must be weekly, bi-weekly or monthly");
+  }
+  if (!Number.isInteger(maxMembers) || maxMembers < 4 || maxMembers > 20) {
+    throw new ApiError(400, "Group size must be between 4 and 20");
+  }
+
+  // creator always comes from the token, never from the body
+  const group = await SavingsGroup.create({
+    name: name.trim(),
+    description: typeof description === "string" ? description.trim() : undefined,
+    creator: req.user._id,
+    contributionAmount,
+    frequency,
+    maxMembers,
+    status: "open",
+  });
+
+  try {
+    await Membership.create({
+      group: group._id,
+      user: req.user._id,
+      status: "approved",
+      payoutPosition: 1,
+      approvedAt: new Date(),
     });
+  } catch (error) {
+    await SavingsGroup.findByIdAndDelete(group._id); // do not leave a group with no creator membership
+    throw error;
+  }
+  return sendSuccess(res, 201, "Group created successfully", group);
 };
 
-// Helper: load a group and verify that current
-// authenticated user is its creator.
-const getGroupOwnedByUser = async (groupId, userId, res) => {
-
-        if(!mongoose.isValidObjectId(groupId)) {
-            res.status(400).json({
-                success: false,
-                message: "Invalid group ID",
-                timestamp: new Data(),
-            });
-            return null;
-        }
-
-        const group = await Group.findById(groupId);
-        if (!group) {
-            res.status(404).json({
-                success: false,
-                message: "Group not found",
-                timestamp: new Data(),
-            });
-            return null;
-        }
-
-        if (String(group.creator) !== String(userId)) {
-            res.status(403).json({
-                success: false,
-                message: "Only the group creator can perform this action",
-                timestamp: new Data(),
-            });
-            return null;
-        }
-        return froup;
-    };
-
-// A7: creating a group and its creators approved membership.
-const createGroup = async ( req, res ) => {
-    try {
-        const { name, description, contributionAmount, frequency, maxMembers,} = req.body;
-        if (typeof name !== "string" || !name.trim()) {
-            return res.status(400).json({
-                success: false,
-                message: "Group name is required",
-                timestamp: new Data(),
-            });
-        }
-
-    //validate contribution amount.
-    // whole number
-    const amount = Number(contributionAmount);
-    if (contributionAmount === undefined || 
-        contributionAmount === null ||
-        contributionAmount === " " ||
-        !Number.isSafeInteger(amount) || amount <= 0
-    ) {
-        return res.status(400).json({
-            success: false,
-            message: "Contribition amount must be a whole number above 0",
-            timestamp: new Data(),
-        });
-    }
-
-    // validate frequency.
-    if (!ALLOWED_FREQUENCIES.includes(frequency)
-    ) {
-return res.status(400).json({
-    success: false,
-    message: `Frequency must be one of: 
-    ${ALLOWED_FREQUENCIES.join(', ')}`,
-        });
-}
-
-// Validate max number
-const size = Number(maxMembers);
-if (
-    maxMembers === undefined ||
-    maxMembers === null ||
-    maxMembers === '' ||
-    !Number.isSafeInteger(size) ||
-    size < 4 ||
-    size > 20
-) {
-    return res.status(400).json({
-        success: false,
-        message: "Maximum members must be a whole from 4 to 20",
-        timestamp: new Data(),
-    });
-}
-
-if (!req.user?._id) {
-    return res.status(401).json({
-        success: false,
-        message: "Authentication required",
-        timestamp: new Data(),
-    });
-}
-
-// Never accept the creator from req.body.
-     const group = await Group.create({name: name.trim(),
-        description:
-           typeof description === "string" ? description.trim()
-           : description,
-        contributionAmount: amount,
-        frequency,
-        maxMembers: size,
-        creator: req.user._id,
-        status: "open",     
-     });
-
-     try {
-        // creator is the first approved member.
-        await Membership.create({
-            group: group._id,
-            user: req.user._id,
-            status: "approved",
-            payoutPosition: 1,
-            approvedAt: new Data(),
-        });
-     } catch(membershipError) {
-        // Avoid leaving without its creators
-        // membership if membership creation fails.
-        await Group.findByIdAndDelete(group._id);
-        throw membershipError;
-     }
-
-     return res.status(201).json({
-        success: true,
-        message: "Group created successfully",
-        data: group,
-        timestamp: new Data(),
-     });
-} catch (error) {
-    console.error("Create group error:", error);
-
-    return res.status(500).json({
-        success: false,
-        message: "failed to created group",
-        timestamp: new Data(),
-    });
-}
-};
-
-// A8: list open groups that are not full.
-const getOpenGroups = async ( req, res ) => {
-    try {
-        const groups = await Group.find({
-            status: "open",
-        })
-        .populate("creator", "fullName")
-        .lean();
-
-        const groupIds = groups.map((group) => group._id);
-        const counts = await Membership.aggregate([
-            {
-                $match: {
-                    group: { $in: groupIds },
-                },
-            },
-            {
-                $group: {
-                    _id: "$group",
-                    count: { $sum: 1 },
-                },
-            },
-        ]);
-
-        const countByGroup = new Map(
-            counts.map((item) => [
-                string(item._id),
-                item.count,
-            ])
-        );
-
-        // groups that have reach capacity is hide.
-        const availableGroups = groups.map((group) => ({
-            ...group,
-            approvedMemberCount: countByGroup.get(String(group._id)) || 0,
-        }))
-        .filter((group) => group.approvedMemberCount < group.maxMembers
-    );
-
-    return res.status(200).json({
-        count: availableGroups.lenght,
-        groups: availableGroups,
-    });
-    } catch (error) {
-        console.error("Get open groups error:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to retrieve open groups",
-            timestamp: new Data(),
-        });
-    }
-};
-
-// return groups in which the user has a membership
-const getMyGroups = async ( req, res ) => {
-    try {
-        const memberships = await Membership.find({
-            user: req.user._id,
-        })
-        .populate({
-            path: "group",
-            populate: {
-                path: "creator",
-                select: "fullName",
-            },
-        })
-        .lean();
-
-        const myGroups = memberships.filter((membership) => membership.group)
-        .map((membership) => ({
-            ...membership.group,
-            membershipStatus: membership.status,
-            payoutPosition: membership.payoutPosition,
-        }));
-
-        return res.status(200).json({
-            count: myGroups.length,
-            groups: myGroups,
-        });
-    } catch (error) {
-        console.error("Get my groups error:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to retrieve your groups",
-            timestamp: new Data(),
-        });
-    }
-};
-
-// return groups details and approved members.
-const getGroupById = async ( req, res ) => {
-    try {
-        const { groupId } = req.params;
-
-        if ( !mongoose.isValidObjectId(groupId)) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid group ID",
-                timestamp: new Data(),
-            });
-        }
-
-        const group = await Group.findById(groupId)
-        .select("-__v")
-        .populate({
-            path: "creator",
-            select: SAFE_USER_FIELDS,
-        })
-        .lean();
-
-        if (!group) {
-            return res.status(404).json({
-                success: false,
-                message: "Group not found",
-                timestamp: new Data(),
-            });
-        }
-
-        const members = await Membership.find({
-            group:groupId,
-            status: "approved",
-        })
-        .select("user payoutPosition status approvedAt")
-        .populate({
-            path: "user",
-            select: SAFE_USER_FIELDS,
-        })
-        .SORT({ payoutPosition: 1})
-        .lean();
-
-        return res.status(200).json({
-            group,
-            creator: group.create,
-            approvedMembers: members,
-        });
-    } catch (error) {
-        console.error("Get group details error:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to retrieve group details",
-            timestamp: new Data(),
-        });
-    }
-};
-
-// A9 request to join a group.
-const requestToJoinGroup = async ( req, res ) => {
-    try {
-        const { groupId } = req.params;
-        const userId = req.user._id;
-
-        if ( !mongoose.isValidObjectId(groupId)) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid group ID",
-                timestamp: new Data(),
-            });
-        }
-
-        const group = await Group.findById(groupId);
-
-        if ( !group ) {
-            return res.status(404).json({
-                success: false,
-                message: "Group not found",
-                timestamp: new Data(),
-            });
-        }
-
-        if ( group.status !== "open" ) {
-            return res.status(400).json({
-                success: false,
-                message: "This group is no longer accepting members",
-                timestamp: new Data(),
-            });
-        }
-
-        const approvedCount = await countApprovedMembers(groupId);
-
-        if ( approvedCount >= group.maxMembers) {
-            return res.status(400).json({
-                success: false,
-                message: "This group is full",
-                timestamp: new Data(),
-            });
-        }
-
-        const existingMembership = await Membership.findOne({
-            group: groupId,
-            user: userId,
-        });
-
-        if ( existingMembership ) {
-            if ( existingMembership.status === "pending" ||
-                existingMembership.status === "approved"
-            ) {
-                return res.status(409).json({
-                    success: false,
-                    message: "You already have a pending or approved membership",
-                    timestamp: new Data(),
-                });
-            }
-
-            if ( existingMembership.status === "rejected") {
-                existingMembership.status === "pending";
-                existingMembership.payoutPosition = null;
-                existingMembership.approvedAt = undefined;
-
-                await existingMembership.save();
-
-                return res.status(200).json({
-                    success: true,
-                    message: "Membership request submitted again",
-                    membership: existingMembership,
-                    timestamp: new Data(),
-                });
-            }
-
-            return res.status(409).json({
-                success: false,
-                message: "An existing membership prevents a new request",
-                timestamp: new Data(),
-            });
-        }
-
-        const membership = await Membership.create({
-            group: groupId,
-            user: userId,
-            status: "pending",
-            payoutPosition: null,
-        });
-
-        return res.status(201).json({
-            success: true,
-            message: "Membership request submitted successfully",
-            timestamp: new Data(),
-        });
-    } catch (error) {
-        console.error("join group error:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to submit membership request",
-            timestamp: new Data(),
-        });
-    }
-};
-
-// A10: Creator views pending membership request.
-const getGroupRequests = async ( req, res) => {
-    try {
-        const group = await getGroupOwnedByUser(
-            req.params.groupId,
-            req.user._id,
-            res
-        );
-
-    if ( !group) return;
-
-    const requests = await Membership.find({
-        group: group._id,
-        status: "pending",
-    })
-    .select("user group status createAt")
-    .populate({
-        path: "user",
-        select: SAFE_USER_FIELDS,
-    })
+// ---------- A8 ----------
+export const listOpenGroups = async (req, res) => {
+  const groups = await SavingsGroup.find({ status: "open" })
+    .populate("creator", "fullName")
+    .sort({ createdAt: -1 })
     .lean();
 
-    return res.status(200).json({
-        count: requests.length,
-        requests,
-    });
-} catch (error) {
-    console.error("Get group requests error:", error);
+  const counts = await Membership.aggregate([
+    { $match: { status: "approved", group: { $in: groups.map((g) => g._id) } } },
+    { $group: { _id: "$group", count: { $sum: 1 } } },
+  ]);
+  const countMap = new Map(counts.map((c) => [String(c._id), c.count]));
 
-    return res.status(500).json({
-        success: false,
-        message: "Failed to retrieve membership requests",
-        timestamp: new Data(),
-    });
-}
+  const result = groups
+    .map((g) => {
+      const approvedCount = countMap.get(String(g._id)) || 0;
+      return { ...g, approvedCount, spotsLeft: g.maxMembers - approvedCount };
+    })
+    .filter((g) => g.spotsLeft > 0); // hide full groups
+
+  return sendSuccess(res, 200, "Open groups fetched", result);
 };
 
-// creator approves a pending member.
-const approveMember = async ( req , res ) => {
-    try {
-        const { groupId, userId } = req.params;
-        const group = await getGroupOwnedByUser(
-            groupId,
-            req.user._id,
-            res
-        );
+export const myGroups = async (req, res) => {
+  const memberships = await Membership.find({ user: req.user._id })
+    .populate("group")
+    .sort({ createdAt: -1 });
+  const result = memberships
+    .filter((m) => m.group)
+    .map((m) => ({
+      group: m.group,
+      membershipStatus: m.status,
+      payoutPosition: m.payoutPosition,
+    }));
+  return sendSuccess(res, 200, "Your groups fetched", result);
+};
 
-        if ( !group) return;
+export const getGroup = async (req, res) => {
+  const group = await findGroupOr404(req.params.groupId);
+  await group.populate("creator", "fullName");
 
-        if (!mongoose.isValidObjectId(userId)) {
-            return res.status(400).json({
-                success: false,
-                message: "nvalid user ID",
-                timestamp: new Data(),
-            });
-        }
+  const mine = await Membership.findOne({ group: group._id, user: req.user._id });
+  const isApprovedMember = mine?.status === "approved";
+  // Open groups are visible to everyone (people need to see a group to ask to join it).
+  // Once a group has started, only its members can see it (R15).
+  if (group.status !== "open" && !isApprovedMember) {
+    throw new ApiError(403, "You are not a member of this group");
+  }
 
-        const membership = await Membership.fiindOne({
-            group: group._id,
-            user: user._id,
-            status: "pending",
-        });
+  const members = await Membership.find({ group: group._id, status: "approved" })
+    .populate("user", "fullName")
+    .sort({ payoutPosition: 1 });
 
-        if ( !membership) {
-            return res.status(404).json({
-                success: false,
-                message: "This group is no longer accepting member",
-                timestamp: new Data(),
-            });
-        }
+  return sendSuccess(res, 200, "Group fetched", {
+    group,
+    creatorName: group.creator.fullName,
+    myMembershipStatus: mine ? mine.status : null,
+    members: members.map((m) => ({
+      userId: m.user._id,
+      fullName: m.user.fullName,
+      payoutPosition: m.payoutPosition,
+    })),
+  });
+};
 
-        const approvedCount = await countApprovedMembers(group._id);
+// ---------- A9 ----------
+export const joinGroup = async (req, res) => {
+  const group = await findGroupOr404(req.params.groupId);
+  if (group.status !== "open") throw new ApiError(400, "This group is no longer accepting members");
 
-        if (approveCount >= group.maxMembers) {
-            return res.status(400).json({
-                success: false,
-                message: "This group is full",
-                timestamp: new Data(),
-            })
-        }
+  if ((await countApproved(group._id)) >= group.maxMembers) throw new ApiError(400, "This group is full");
 
-        membership.status = "approved";
-        membership.payoutPosition = approvedCount + 1;
-        membership.approvedAt = new data(),
-
-        await membership.save();
-
-        return res.status(200).json({
-            success: true,
-            message: "Member aprroved successfully",
-            data: membership,
-            timestamp: new Data(),
-        });
-    } catch (error) {
-        console.error("Approve number error:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to approved member",
-            timestamp: new Data(),
-        });
+  const existing = await Membership.findOne({ group: group._id, user: req.user._id });
+  if (existing) {
+    if (existing.status === "rejected") {
+      existing.status = "pending"; // A7: a rejected user may ask again while the group is open
+      await existing.save();
+      return sendSuccess(res, 200, "Join request sent again", existing);
     }
+    throw new ApiError(409, `You already have a ${existing.status} request for this group`);
+  }
+
+  const membership = await Membership.create({
+    group: group._id,
+    user: req.user._id,
+    status: "pending",
+    payoutPosition: null,
+  });
+  return sendSuccess(res, 201, "Join request sent", membership);
 };
 
-//A10: creator rejects a pending member.
-const rejectMember = async ( req, res ) => {
-    try {
-        const { groupId, userId } = req.params;
-        const group = await getGroupOwnedByUser(
-            groupId,
-            req.user._id,
-            res
-        );
-
-        if (!group) return;
-
-        if (!mongoose.isValidObjectId(userId)) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid user ID",
-            });
-        }
-
-        const membership = await Membership.findOne({
-            group: group._id,
-            user: userId,
-            status: "pending",
-        });
-
-        if (!membership) {
-            return res.status(404).json({
-                success: false,
-                message: "Pending membership request not found",
-                timestamp: new Data(),
-            });
-        }
-
-        membership.status = "rejected";
-        membership.payoutPosition = null;
-
-        await membership.save();
-
-        return res.status(200).json({
-            success: true,
-            message: "Membership request rejected",
-            timestamp: new Data(),
-        });
-    } catch (error) {
-        console.error("Reject number error:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to reject membership request",
-            timestamp: new Data(),
-        });
-    }
+// ---------- A10 ----------
+export const getRequests = async (req, res) => {
+  const group = await loadGroupAsCreator(req.params.groupId, req.user);
+  const requests = await Membership.find({ group: group._id, status: "pending" })
+    .populate("user", "fullName email")
+    .sort({ createdAt: 1 });
+  return sendSuccess(res, 200, "Pending requests fetched", requests);
 };
 
-//A11: creator starts a group with at least 4 approved members.
-const startGroup = async ( req, res ) => {
-    try {
-        const group = await getGroupOwnedByUser(
-            req.params.groupId,
-            req.user._id,
-            res
-        );
+export const approveMember = async (req, res) => {
+  const group = await loadGroupAsCreator(req.params.groupId, req.user);
+  assertValidId(req.params.userId, "user ID");
 
-        if (!group) return;
+  const membership = await Membership.findOne({
+    group: group._id,
+    user: req.params.userId,
+    status: "pending",
+  });
+  if (!membership) throw new ApiError(404, "No pending request found for this user");
 
-        if (group.status !== "open") {
-            return res.status(400).json({
-                success: false,
-                message: "Group has already started",
-                timestamp: new Data(),
-            });
-        }
+  if (group.status !== "open") throw new ApiError(400, "This group has already started");
+  const approvedCount = await countApproved(group._id);
+  if (approvedCount >= group.maxMembers) throw new ApiError(400, "This group is full");
 
-        const approveCount = await countApprovedMembers(group._id);
-
-        if (approveCount < 4) {
-            return res.status(400).json({
-                success: false,
-                message: "At least 4 approved members are needed to start",
-                timestamp: new Data(),
-            });
-        }
-
-        group.status = "active";
-        group.startDate = new Date();
-
-        await group.save();
-
-        const payoutOrder = await Membership.find({
-            group: group._id,
-            status: "approved",
-        })
-        .select("user payoutPosition")
-        .populate({
-            path: "user",
-            select: SAFE_USER_FIELDS,
-        })
-        .sort({ payoutPosition: 1 })
-        .lean();
-
-        return res.status(200).json({
-            success: true,
-            message: "Group started successfully",
-            data: group,
-            startDate: group.startDate,
-            data: payoutOrder,
-            timestamp: new Data(),
-        });
-    } catch (error) {
-        console.error("Start group error:", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Failed to start group",
-            timestamp: new Data(),
-        });
-    }
+  membership.status = "approved";
+  membership.payoutPosition = approvedCount + 1; // R11: join order
+  membership.approvedAt = new Date();
+  await membership.save();
+  return sendSuccess(res, 200, "Member approved", membership);
 };
 
-export default {
-    createGroup,
-    getMyGroups,
-    getGroupById,
-    getGroupOwnedByUser,
-    getGroupRequests,
-    requestToJoinGroup,
-    rejectMember,
-    approveMember,
-    startGroup
+export const rejectMember = async (req, res) => {
+  const group = await loadGroupAsCreator(req.params.groupId, req.user);
+  assertValidId(req.params.userId, "user ID");
+
+  const membership = await Membership.findOne({
+    group: group._id,
+    user: req.params.userId,
+    status: "pending",
+  });
+  if (!membership) throw new ApiError(404, "No pending request found for this user");
+
+  membership.status = "rejected";
+  await membership.save();
+  return sendSuccess(res, 200, "Request rejected", membership);
+};
+
+// ---------- A11 ----------
+export const startGroup = async (req, res) => {
+  const group = await loadGroupAsCreator(req.params.groupId, req.user);
+  if (group.status !== "open") throw new ApiError(400, "Group has already started");
+
+  const approvedCount = await countApproved(group._id);
+  if (approvedCount < 4) throw new ApiError(400, "At least 4 approved members are needed to start");
+
+  group.status = "active";
+  group.startDate = new Date();
+  await group.save();
+
+  const order = await Membership.find({ group: group._id, status: "approved" })
+    .populate("user", "fullName")
+    .sort({ payoutPosition: 1 });
+
+  return sendSuccess(res, 200, "Group started", {
+    group,
+    startDate: group.startDate,
+    payoutOrder: order.map((m) => ({
+      payoutPosition: m.payoutPosition,
+      userId: m.user._id,
+      fullName: m.user.fullName,
+    })),
+  });
+};
+
+// ---------- C4 ----------
+export const uploadGroupImage = async (req, res) => {
+  const group = await loadGroupAsCreator(req.params.groupId, req.user);
+  if (!req.file) throw new ApiError(400, "Image file is required (field name: image)");
+  if (group.image?.publicId) await deleteImage(group.image.publicId);
+  group.image = await uploadImage(req.file.buffer, "ajo/groups");
+  await group.save();
+  return sendSuccess(res, 200, "Group image updated", { image: group.image });
 };

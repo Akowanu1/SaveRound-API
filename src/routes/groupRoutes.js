@@ -1,37 +1,22 @@
-import express from "express";
-
+import { Router } from "express";
+import { protect } from "../middlewares/authMiddleware.js";
+import upload from "../middlewares/upload.js";
 import {
-    createGroup,
-    getOpenGroups,
-    getMyGroups,
-    getGroupById,
-    requestToJoinGroup,
-    getGroupRequests,
-    approveMember,
-    rejectMember,
-    startGroup,
+  createGroup, listOpenGroups, myGroups, getGroup, joinGroup, getRequests,
+  approveMember, rejectMember, startGroup, uploadGroupImage,
 } from "../controllers/groupController.js";
-import authMiddleware from "../middlewares/authMiddleware.js";
 
-const router = express.Router();
+const router = Router();
 
-// A7 - create a group
-router.post("/", authMiddleware, createGroup);
-
-// A8 browse group
-router.post("/", authMiddleware, getOpenGroups);
-router.get("/main", authMiddleware, getMyGroups);
-router.get("/:groupId", authMiddleware, getGroupById);
-
-// A9 request to join
-router.post("/api/groups/:groupId/join", authMiddleware, requestToJoinGroup);
-
-// A10 approve or reject members
-router.get('/api/groups/:groupId/requests', authMiddleware, getGroupRequests);
-router.patch("/api/members/:userId/approve", authMiddleware, approveMember);
-router.patch("/api/members/:userId/reject", authMiddleware, rejectMember);
-
-// A11 start a group
-router.post("/api/groups/:groupId/start", authMiddleware, startGroup);
+router.post("/", protect, createGroup);
+router.get("/", protect, listOpenGroups);
+router.get("/mine", protect, myGroups); // MUST be before "/:groupId"
+router.get("/:groupId", protect, getGroup);
+router.post("/:groupId/join", protect, joinGroup);
+router.get("/:groupId/requests", protect, getRequests);
+router.patch("/:groupId/members/:userId/approve", protect, approveMember);
+router.patch("/:groupId/members/:userId/reject", protect, rejectMember);
+router.post("/:groupId/start", protect, startGroup);
+router.post("/:groupId/image", protect, upload.single("image"), uploadGroupImage);
 
 export default router;
