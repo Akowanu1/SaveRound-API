@@ -17,3 +17,8 @@ const router = express.Router();
 
 // A7 - create a group
 router.post("/", authMiddleware, createGroup);
+
+// A8 browse group
+router.post("/", authMiddleware, getOpenGroups);
+router.get("/main", authMiddleware, getMyGroups);
+router.get("/:groupId", authMiddleware, getGroupById);
