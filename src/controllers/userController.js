@@ -3,6 +3,7 @@ import { sendSuccess } from "../utils/apiResponse.js";
 import { uploadImage, deleteImage } from "../utils/cloudinaryUpload.js";
 
 export const getMe = async (req, res) => {
+  try {
   const u = req.user;
   return sendSuccess(res, 200, "Profile fetched", {
     id: u._id,
@@ -11,6 +12,16 @@ export const getMe = async (req, res) => {
     profilePicture: u.profilePicture,
     createdAt: u.createdAt,
   });
+}catch (error) {
+  console.error("Get current user error:",
+    error.messager);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to retrieve user profile",
+      timestamp: new Data(),
+  });
+}
 };
 
 export const updateAvatar = async (req, res) => {
