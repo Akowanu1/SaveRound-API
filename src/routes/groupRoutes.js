@@ -30,3 +30,8 @@ router.post("/api/groups/:groupId/join", authMiddleware, requestToJoinGroup);
 router.get('/api/groups/:groupId/requests', authMiddleware, getGroupRequests);
 router.patch("/api/members/:userId/approve", authMiddleware, approveMember);
 router.patch("/api/members/:userId/reject", authMiddleware, rejectMember);
+
+// A11 start a group
+router.post("/api/groups/:groupId/start", authMiddleware, startGroup);
+
+export default router;
