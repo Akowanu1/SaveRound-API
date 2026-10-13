@@ -22,3 +22,6 @@ router.post("/", authMiddleware, createGroup);
 router.post("/", authMiddleware, getOpenGroups);
 router.get("/main", authMiddleware, getMyGroups);
 router.get("/:groupId", authMiddleware, getGroupById);
+
+// A9 request to join
+router.post("/api/groups/:groupId/join", authMiddleware, requestToJoinGroup);

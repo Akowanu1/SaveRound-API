@@ -300,6 +300,110 @@ const getGroupById = async ( req, res ) => {
         return res.status(500).json({
             success: false,
             message: "Failed to retrieve group details",
+            timestamp: new Data(),
+        });
+    }
+};
+
+// A9 request to join a group.
+const requestToJoinGroup = async ( req, res ) => {
+    try {
+        const { groupId } = req.params;
+        const userId = req.user._id;
+
+        if ( !mongoose.isValidObjectId(groupId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid group ID",
+                timestamp: new Data(),
+            });
+        }
+
+        const group = await Group.findById(groupId);
+
+        if ( !group ) {
+            return res.status(404).json({
+                success: false,
+                message: "Group not found",
+                timestamp: new Data(),
+            });
+        }
+
+        if ( group.status !== "open" ) {
+            return res.status(400).json({
+                success: false,
+                message: "This group is no longer accepting members",
+                timestamp: new Data(),
+            });
+        }
+
+        const approvedCount = await countApprovedMembers(groupId);
+
+        if ( approvedCount >= group.maxMembers) {
+            return res.status(400).json({
+                success: false,
+                message: "This group is full",
+                timestamp: new Data(),
+            });
+        }
+
+        const existingMembership = await Membership.findOne({
+            group: groupId,
+            user: userId,
+        });
+
+        if ( existingMembership ) {
+            if ( existingMembership.status === "pending" ||
+                existingMembership.status === "approved"
+            ) {
+                return res.status(409).json({
+                    success: false,
+                    message: "You already have a pending or approved membership",
+                    timestamp: new Data(),
+                });
+            }
+
+            if ( existingMembership.status === "rejected") {
+                existingMembership.status === "pending";
+                existingMembership.payoutPosition = null;
+                existingMembership.approvedAt = undefined;
+
+                await existingMembership.save();
+
+                return res.status(200).json({
+                    success: true,
+                    message: "Membership request submitted again",
+                    membership: existingMembership,
+                    timestamp: new Data(),
+                });
+            }
+
+            return res.status(409).json({
+                success: false,
+                message: "An existing membership prevents a new request",
+                timestamp: new Data(),
+            });
+        }
+
+        const membership = await Membership.create({
+            group: groupId,
+            user: userId,
+            status: "pending",
+            payoutPosition: null,
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: "Membership request submitted successfully",
+            timestamp: new Data(),
+        });
+    } catch (error) {
+        console.error("join group error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to submit membership request",
+            timestamp: new Data(),
         });
     }
 };
