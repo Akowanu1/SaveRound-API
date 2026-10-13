@@ -105,3 +105,52 @@ export const recordContribution = async (req, res) => {
     throw error;
   }
 };
+
+
+
+// B4: GET /api/groups/:groupId/contributions
+export const getGroupContributions = async (req, res) => {
+  const { groupId } = req.params;
+
+  if (!mongoose.isValidObjectId(groupId)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid group ID", data: {} });
+  }
+
+  // Only approved members can view the group's contributions (R15)
+  const membership = await Membership.findOne({
+    group: groupId,
+    user: req.user._id,
+  });
+  if (!membership || membership.status !== "approved") {
+    return res.status(403).json({
+      success: false,
+      message: "You are not an approved member of this group",
+      data: {},
+    });
+  }
+
+  const filter = { group: groupId };
+  if (req.query.cycle !== undefined) {
+    const cycle = Number(req.query.cycle);
+    if (!Number.isInteger(cycle) || cycle < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "cycle must be a whole number",
+        data: {},
+      });
+    }
+    filter.cycleNumber = cycle;
+  }
+
+  const contributions = await Contribution.find(filter)
+    .populate("user", "fullName")
+    .sort({ cycleNumber: 1, paidOn: 1 });
+
+  return res.status(200).json({
+    success: true,
+    message: "Contributions retrieved successfully",
+    data: contributions,
+  });
+};
