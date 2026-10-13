@@ -105,3 +105,19 @@ export const recordContribution = async (req, res) => {
     throw error;
   }
 };
+
+
+// B5: GET /api/contributions/me
+export const getMyContributions = async (req, res) => {
+  const contributions = await Contribution.find({ user: req.user._id })
+    .populate("group", "name")
+    .sort({ paidOn: -1 });
+
+  const totalContributed = contributions.reduce((sum, c) => sum + c.amount, 0);
+
+  return res.status(200).json({
+    success: true,
+    message: "Your contributions retrieved successfully",
+    data: { totalContributed, contributions },
+  });
+};
