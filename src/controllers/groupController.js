@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Group from "../models/Membership.js";
 import User from "../models/User.js";
+import Membership from "../models/Membership.js";
 
 const ALLOWED_FREQUENCIES = [ "weekly", "bi-weekly", "monthly"];
 
@@ -154,4 +155,151 @@ if (!req.user?._id) {
         timestamp: new Data(),
     });
 }
+};
+
+// A8: list open groups that are not full.
+const getOpenGroups = async ( req, res ) => {
+    try {
+        const groups = await Group.find({
+            status: "open",
+        })
+        .populate("creator", "fullName")
+        .lean();
+
+        const groupIds = groups.map((group) => group._id);
+        const counts = await Membership.aggregate([
+            {
+                $match: {
+                    group: { $in: groupIds },
+                },
+            },
+            {
+                $group: {
+                    _id: "$group",
+                    count: { $sum: 1 },
+                },
+            },
+        ]);
+
+        const countByGroup = new Map(
+            counts.map((item) => [
+                string(item._id),
+                item.count,
+            ])
+        );
+
+        // groups that have reach capacity is hide.
+        const availableGroups = groups.map((group) => ({
+            ...group,
+            approvedMemberCount: countByGroup.get(String(group._id)) || 0,
+        }))
+        .filter((group) => group.approvedMemberCount < group.maxMembers
+    );
+
+    return res.status(200).json({
+        count: availableGroups.lenght,
+        groups: availableGroups,
+    });
+    } catch (error) {
+        console.error("Get open groups error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to retrieve open groups",
+            timestamp: new Data(),
+        });
+    }
+};
+
+// return groups in which the user has a membership
+const getMyGroups = async ( req, res ) => {
+    try {
+        const memberships = await Membership.find({
+            user: req.user._id,
+        })
+        .populate({
+            path: "group",
+            populate: {
+                path: "creator",
+                select: "fullName",
+            },
+        })
+        .lean();
+
+        const myGroups = memberships.filter((membership) => membership.group)
+        .map((membership) => ({
+            ...membership.group,
+            membershipStatus: membership.status,
+            payoutPosition: membership.payoutPosition,
+        }));
+
+        return res.status(200).json({
+            count: myGroups.length,
+            groups: myGroups,
+        });
+    } catch (error) {
+        console.error("Get my groups error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to retrieve your groups",
+            timestamp: new Data(),
+        });
+    }
+};
+
+// return groups details and approved members.
+const getGroupById = async ( req, res ) => {
+    try {
+        const { groupId } = req.params;
+
+        if ( !mongoose.isValidObjectId(groupId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid group ID",
+                timestamp: new Data(),
+            });
+        }
+
+        const group = await Group.findById(groupId)
+        .select("-__v")
+        .populate({
+            path: "creator",
+            select: SAFE_USER_FIELDS,
+        })
+        .lean();
+
+        if (!group) {
+            return res.status(404).json({
+                success: false,
+                message: "Group not found",
+                timestamp: new Data(),
+            });
+        }
+
+        const members = await Membership.find({
+            group:groupId,
+            status: "approved",
+        })
+        .select("user payoutPosition status approvedAt")
+        .populate({
+            path: "user",
+            select: SAFE_USER_FIELDS,
+        })
+        .SORT({ payoutPosition: 1})
+        .lean();
+
+        return res.status(200).json({
+            group,
+            creator: group.create,
+            approvedMembers: members,
+        });
+    } catch (error) {
+        console.error("Get group details error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to retrieve group details",
+        });
+    }
 };
