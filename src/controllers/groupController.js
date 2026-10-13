@@ -565,3 +565,80 @@ const rejectMember = async ( req, res ) => {
         });
     }
 };
+
+//A11: creator starts a group with at least 4 approved members.
+const startGroup = async ( req, res ) => {
+    try {
+        const group = await getGroupOwnedByUser(
+            req.params.groupId,
+            req.user._id,
+            res
+        );
+
+        if (!group) return;
+
+        if (group.status !== "open") {
+            return res.status(400).json({
+                success: false,
+                message: "Group has already started",
+                timestamp: new Data(),
+            });
+        }
+
+        const approveCount = await countApprovedMembers(group._id);
+
+        if (approveCount < 4) {
+            return res.status(400).json({
+                success: false,
+                message: "At least 4 approved members are needed to start",
+                timestamp: new Data(),
+            });
+        }
+
+        group.status = "active";
+        group.startDate = new Date();
+
+        await group.save();
+
+        const payoutOrder = await Membership.find({
+            group: group._id,
+            status: "approved",
+        })
+        .select("user payoutPosition")
+        .populate({
+            path: "user",
+            select: SAFE_USER_FIELDS,
+        })
+        .sort({ payoutPosition: 1 })
+        .lean();
+
+        return res.status(200).json({
+            success: true,
+            message: "Group started successfully",
+            data: group,
+            startDate: group.startDate,
+            data: payoutOrder,
+            timestamp: new Data(),
+        });
+    } catch (error) {
+        console.error("Start group error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to start group",
+            timestamp: new Data(),
+        });
+    }
+};
+
+export default {
+    createGroup,
+    getMyGroups,
+    getGroupById,
+    getGroupOwnedByUser,
+    getGroupRequests,
+    requestToJoinGroup,
+    rejectMember,
+    approveMember,
+    startGroup
+};
