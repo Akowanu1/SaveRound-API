@@ -2,7 +2,7 @@ import crypto from "crypto";
 import User from "../models/User.js";
 import ApiError from "../utils/ApiError.js";
 import { sendSuccess } from "../utils/apiResponse.js";
-import generateToken from "../utils/generateToken.js";
+import generateToken from "../utils/generateTokens.js";
 import { sendEmail, verificationEmailHtml } from "../utils/sendEmail.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

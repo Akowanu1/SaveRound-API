@@ -5,7 +5,9 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "dev": "nodemon app.js",
+    "seed": "node src/seed/seed.js",
+    "test:cycle": "node src/utils/cycle.test.js"
   },
   "repository": {
     "type": "git",
@@ -18,7 +20,7 @@
     "api",
     "express"
   ],
-  "author": "",
+  "author": "TechCrush Backend Group 3 Cohort 8",
   "license": "ISC",
   "type": "module",
   "engines": {
@@ -29,11 +31,13 @@
   },
   "homepage": "https://github.com/Akowanu1/SaveRound-API#readme",
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.11.0",
     "cors": "^2.8.6",
     "dotenv": "^18.0.7",
     "express": "^5.3.0",
+    "express-rate-limit": "^7.5.1",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.11.1",

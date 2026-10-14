@@ -2,7 +2,8 @@ import "dotenv/config"; // must be first so every other file can read process.en
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-//import rateLimit from "express-rate-limit";
+import rateLimit from "express-rate-limit";
+import bcrypt from "bcrypt";
 import connectDb from "./src/config/db.js";
 import ApiError from "./src/utils/ApiError.js";
 import authRoutes from "./src/routes/authRoutes.js";
