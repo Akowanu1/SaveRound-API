@@ -1,2 +1,15 @@
+# Dependencies
 node_modules/
+
+# Secrets: never commit these
 .env
+.env.*
+!.env.example
+
+# Logs and system files
+*.log
+npm-debug.log*
+.DS_Store
+
+# Temporary test scripts
+tmp/
